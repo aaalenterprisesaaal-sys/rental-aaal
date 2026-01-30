@@ -251,15 +251,16 @@ if 'order_submitted' not in st.session_state:
     st.session_state.order_submitted = False
 
 def validate_email(email):
-    """Validate email format"""
+    """Validate email format test"""
     pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     return re.match(pattern, email) is not None
 
-def calculate_total(num_chairs, num_tables):
+def calculate_total(num_chairs, num_tables, num_loveseats=0):
     """Calculate total cost with discount"""
     chair_cost = num_chairs * 1
     table_cost = num_tables * 5
-    subtotal = chair_cost + table_cost
+    loveseat_cost = num_loveseats * 60
+    subtotal = chair_cost + table_cost + loveseat_cost
     
     # Apply 5% discount if subtotal >= $200
     discount = 0
@@ -271,6 +272,7 @@ def calculate_total(num_chairs, num_tables):
     return {
         'chair_cost': chair_cost,
         'table_cost': table_cost,
+        'loveseat_cost': loveseat_cost,
         'subtotal': subtotal,
         'discount': discount,
         'total': total
@@ -410,6 +412,10 @@ def generate_invoice(order_data, costs):
                         <span><strong>${costs['table_cost']:.2f}</strong></span>
                     </div>
                     <div class="item-row">
+                        <span>🛋️ Loveseats ({order_data.get('num_loveseats', 0)} × $60.00)</span>
+                        <span><strong>${costs.get('loveseat_cost', 0):.2f}</strong></span>
+                    </div>
+                    <div class="item-row">
                         <span>Subtotal</span>
                         <span><strong>${costs['subtotal']:.2f}</strong></span>
                     </div>
@@ -496,7 +502,7 @@ DTSTAMP:{dtstamp}
 DTSTART:{dtstart}
 DTEND:{dtend}
 SUMMARY:Table & Chair Rental - {order_data['name']}
-DESCRIPTION:Rental Details:\\n\\nChairs: {order_data['num_chairs']}\\nTables: {order_data['num_tables']}\\n\\nPickup: {order_data['pickup_time']}\\nDrop-off: {order_data['dropoff_time']}\\n\\nCustomer: {order_data['name']}\\nEmail: {order_data['email']}\\nPhone: {order_data.get('phone', 'Not provided')}
+    DESCRIPTION:Rental Details:\\n\\nChairs: {order_data.get('num_chairs', 0)}\\nTables: {order_data.get('num_tables', 0)}\\nLoveseats: {order_data.get('num_loveseats', 0)}\\n\\nPickup: {order_data['pickup_time']}\\nDrop-off: {order_data['dropoff_time']}\\n\\nCustomer: {order_data['name']}\\nEmail: {order_data['email']}\\nPhone: {order_data.get('phone', 'Not provided')}
 LOCATION:To be confirmed
 ORGANIZER:mailto:{sender_email}
 ATTENDEE;RSVP=TRUE;CN={order_data['name']}:mailto:{to_email}
@@ -516,21 +522,22 @@ END:VCALENDAR"""
         message["To"] = to_email
         
         text_body = f"""
-Hello {order_data['name']},
+    Hello {order_data['name']},
 
-Please find attached a calendar invite for your table and chair rental.
+    Please find attached a calendar invite for your table and chair rental.
 
-Event Details:
-- Date: {order_data['event_date']}
-- Time: {start_time} - {end_time}
-- Chairs: {order_data['num_chairs']}
-- Tables: {order_data['num_tables']}
+    Event Details:
+    - Date: {order_data['event_date']}
+    - Time: {start_time} - {end_time}
+    - Chairs: {order_data.get('num_chairs', 0)}
+    - Tables: {order_data.get('num_tables', 0)}
+    - Loveseats: {order_data.get('num_loveseats', 0)}
 
-Pickup: {order_data['pickup_time']}
-Drop-off: {order_data['dropoff_time']}
+    Pickup: {order_data['pickup_time']}
+    Drop-off: {order_data['dropoff_time']}
 
-Best regards,
-Table & Chair Rental Service
+    Best regards,
+    Table & Chair Rental Service
         """
         
         message.attach(MIMEText(text_body, "plain"))
@@ -563,7 +570,7 @@ st.markdown("""
 # Pricing Information with enhanced design
 st.markdown("<h2 class='section-header'>💰 Our Pricing</h2>", unsafe_allow_html=True)
 
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.markdown("""
         <div class='price-item'>
@@ -589,6 +596,18 @@ with col2:
     """, unsafe_allow_html=True)
 
 with col3:
+    st.markdown("""
+        <div class='price-item'>
+            <div style='text-align: center;'>
+                <div class='feature-icon'>🛋️</div>
+                <h3 style='color: #667eea; margin: 10px 0;'>Loveseats</h3>
+                <p style='font-size: 2em; font-weight: 700; color: #333; margin: 10px 0;'>$60.00</p>
+                <p style='color: #666;'>per loveseat</p>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
+
+with col4:
     st.markdown("""
         <div class='price-item'>
             <div style='text-align: center;'>
@@ -666,11 +685,21 @@ with col2:
         help="Each table costs $5.00"
     )
 
+# Loveseat input
+num_loveseats = st.number_input(
+    "🛋️ Number of Loveseats",
+    min_value=0,
+    value=0,
+    step=1,
+    key="loveseats_input",
+    help="Each loveseat costs $60.00"
+)
+
 st.divider()
 
 # Calculate and display total
-if num_chairs > 0 or num_tables > 0:
-    costs = calculate_total(num_chairs, num_tables)
+if num_chairs > 0 or num_tables > 0 or num_loveseats > 0:
+    costs = calculate_total(num_chairs, num_tables, num_loveseats)
     
     st.markdown("<div class='total-section'>", unsafe_allow_html=True)
     st.markdown("<h2 style='color: white; margin-top: 0;'>💵 Order Summary</h2>", unsafe_allow_html=True)
@@ -683,6 +712,10 @@ if num_chairs > 0 or num_tables > 0:
         <div class='summary-row'>
             <span>🪑 Tables ({num_tables} × $5.00)</span>
             <span>${costs['table_cost']:.2f}</span>
+        </div>
+        <div class='summary-row'>
+            <span>🛋️ Loveseats ({num_loveseats} × $60.00)</span>
+            <span>${costs['loveseat_cost']:.2f}</span>
         </div>
         <div class='summary-row'>
             <span>Subtotal</span>
@@ -719,8 +752,8 @@ if submit_button:
         errors.append("❌ Invalid email format")
     if not event_date:
         errors.append("❌ Event date is required")
-    if num_chairs == 0 and num_tables == 0:
-        errors.append("❌ Please select at least one chair or table")
+    if num_chairs == 0 and num_tables == 0 and num_loveseats == 0:
+        errors.append("❌ Please select at least one chair, table, or loveseat")
     
     if errors:
         st.error("⚠️ Please fix the following errors:")
@@ -736,10 +769,11 @@ if submit_button:
             'pickup_time': pickup_time.strftime("%I:%M %p"),
             'dropoff_time': dropoff_time.strftime("%I:%M %p"),
             'num_chairs': num_chairs,
-            'num_tables': num_tables
+            'num_tables': num_tables,
+            'num_loveseats': num_loveseats
         }
-        
-        costs = calculate_total(num_chairs, num_tables)
+
+        costs = calculate_total(num_chairs, num_tables, num_loveseats)
         
         # Display success message
         st.success("✅ Order submitted successfully!")
